@@ -71,6 +71,66 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
         await state.set_state(Form.surname)
 
+# ==================== ОБРАБОТКА АНКЕТЫ ====================
+
+@dp.message(Form.surname)
+async def process_surname(message: types.Message, state: FSMContext):
+    if len(message.text) < 2:
+        await message.answer("Фамилия слишком короткая. Попробуйте ещё раз:")
+        return
+    await state.update_data(surname=message.text)
+    await message.answer("Теперь введите ваше **имя**:")
+    await state.set_state(Form.name)
+
+@dp.message(Form.name)
+async def process_name(message: types.Message, state: FSMContext):
+    if len(message.text) < 2:
+        await message.answer("Имя слишком короткое. Попробуйте ещё раз:")
+        return
+    await state.update_data(name=message.text)
+    await message.answer("Введите **отчество** (или напишите 'нет', если его нет):")
+    await state.set_state(Form.patronymic)
+
+@dp.message(Form.patronymic)
+async def process_patronymic(message: types.Message, state: FSMContext):
+    patronymic = message.text if message.text.lower() != 'нет' else None
+    await state.update_data(patronymic=patronymic)
+    await message.answer("Введите ваше **звание** (или напишите 'нет'):")
+    await state.set_state(Form.rank)
+
+@dp.message(Form.rank)
+async def process_rank(message: types.Message, state: FSMContext):
+    rank = message.text if message.text.lower() != 'нет' else None
+    
+    # Сохраняем пользователя в БД
+    data = await state.get_data()
+    success = add_user(
+        telegram_id=message.from_user.id,
+        surname=data['surname'],
+        name=data['name'],
+        patronymic=data.get('patronymic'),
+        rank=rank
+    )
+    
+    if success:
+        full_name = f"{data['surname']} {data['name']}"
+        if data.get('patronymic'):
+            full_name += f" {data['patronymic']}"
+        
+        await message.answer(
+            f"✅ **Данные сохранены!**\n\n"
+            f"👤 {full_name}\n"
+            f"🎖️ {rank or 'не указано'}\n\n"
+            f"Используйте /profile для просмотра данных\n"
+            f"/help — справка по командам"
+        )
+    else:
+        await message.answer("❌ Ошибка сохранения. Возможно, вы уже зарегистрированы.")
+    
+    await state.clear()
+
+# ==================== /help ====================
+
 @dp.message(Command("help"))
 async def cmd_help(message: types.Message):
     await message.answer(
@@ -91,6 +151,8 @@ async def cmd_help(message: types.Message):
         "👥 **Админ:**\n"
         "/all — Список всех пользователей"
     )
+
+# ==================== /profile ====================
 
 @dp.message(Command("profile"))
 async def cmd_profile(message: types.Message):
@@ -142,15 +204,21 @@ async def cmd_profile(message: types.Message):
         else:
             vac_status = f"✅ **Отпуск:** Действует"
     
+    full_name = f"{user[1]} {user[2]}"
+    if user[3]:
+        full_name += f" {user[3]}"
+    
     await message.answer(
         f"📋 **ВАШИ ДАННЫЕ:**\n\n"
-        f"👤 **ФИО:** {user[1]} {user[2]} {user[3] or ''}\n"
+        f"👤 **ФИО:** {full_name}\n"
         f"🎖️ **Звание:** {user[4] or 'не указано'}\n\n"
         f"{vlk_status}\n"
         f"{check_status}"
         f"{vac_status}\n\n"
         f"📅 **Зарегистрирован:** {user[5]}" if user[5] else ""
     )
+
+# ==================== /delete ====================
 
 @dp.message(Command("delete"))
 async def cmd_delete(message: types.Message, state: FSMContext):
@@ -176,6 +244,8 @@ async def process_delete_confirm(message: types.Message, state: FSMContext):
     else:
         await message.answer("❌ Удаление отменено.")
     await state.clear()
+
+# ==================== /update ====================
 
 @dp.message(Command("update"))
 async def cmd_update(message: types.Message, state: FSMContext):
@@ -224,6 +294,8 @@ async def process_update_value(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Поле **{field}** обновлено на: {message.text}")
     await state.clear()
 
+# ==================== /all (АДМИН) ====================
+
 @dp.message(Command("all"))
 async def cmd_all(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -240,6 +312,8 @@ async def cmd_all(message: types.Message):
     for i, user in enumerate(users, 1):
         text += f"{i}. {user[1]} {user[2]} ({user[3]}) — ID: {user[0]}\n"
     await message.answer(text)
+
+# ==================== /vlk ====================
 
 @dp.message(Command("vlk"))
 async def cmd_vlk(message: types.Message, state: FSMContext):
@@ -260,6 +334,8 @@ async def process_vlk_date(message: types.Message, state: FSMContext):
         await message.answer("❌ Неверный формат. Используйте ГГГГ-ММ-ДД:")
         return
     await state.clear()
+
+# ==================== /checks ====================
 
 @dp.message(Command("checks"))
 async def cmd_checks(message: types.Message, state: FSMContext):
@@ -300,6 +376,8 @@ async def process_exercise_date(message: types.Message, state: FSMContext):
         return
     await state.clear()
 
+# ==================== /vacation ====================
+
 @dp.message(Command("vacation"))
 async def cmd_vacation(message: types.Message, state: FSMContext):
     await message.answer(
@@ -339,7 +417,7 @@ setup_application(app, dp, bot=bot)
 
 async def on_startup(app: web.Application):
     """Запуск бота: webhook + планировщик"""
-    init_db()  # ← Создаём таблицы БД при запуске!
+    init_db()  # Создаём таблицы БД при запуске!
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(run_scheduler(bot, interval_hours=24))
     logger.info("Планировщик напоминаний запущен!")
