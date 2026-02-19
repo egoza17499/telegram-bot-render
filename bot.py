@@ -760,9 +760,26 @@ setup_application(app, dp, bot=bot)
 async def on_startup(app: web.Application):
     """Запуск бота: webhook + планировщик"""
     init_db()
-    await bot.set_webhook(WEBHOOK_URL)
+    
+    # Устанавливаем webhook с ВСЕМИ типами обновлений
+    await bot.set_webhook(
+        WEBHOOK_URL,
+        allowed_updates=[
+            "message",
+            "callback_query",
+            "edited_message",
+            "channel_post",
+            "edited_channel_post",
+            "inline_query",
+            "chosen_inline_result",
+            "chat_member",
+            "my_chat_member"
+        ]
+    )
+    
     asyncio.create_task(run_scheduler(bot, interval_hours=24))
     logger.info("Планировщик напоминаний запущен!")
+    logger.info(f"Webhook установлен: {WEBHOOK_URL}")
 
 async def on_shutdown(app: web.Application):
     """Остановка бота"""
@@ -773,3 +790,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
+
