@@ -73,10 +73,11 @@ app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 
-async def on_startup(bot: Bot):  # ← ВАЖНО: (bot: Bot)
+# Правильная настройка webhook для aiogram 3.x
+async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL)
 
-async def on_shutdown(bot: Bot):  # ← ВАЖНО: (bot: Bot)
+async def on_shutdown(app: web.Application):
     await bot.delete_webhook()
 
 app.on_startup.append(on_startup)
