@@ -3,7 +3,6 @@ import logging
 from datetime import datetime
 from aiogram import Bot
 
-# Импортируем функции из database
 from database import (
     get_all_users, get_medical, get_checks, get_vacation,
     check_vlk_status, check_exercise_status, check_vacation_status
@@ -12,11 +11,11 @@ from database import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ID админа для отчётов
-ADMIN_ID = 393293807  # Твой ID
+# ID админа
+ADMIN_ID = 393293807
 
 async def send_daily_reminders(bot: Bot):
-    """Ежедневная рассылка напоминаний АДМИНУ"""
+    """Ежедневная рассылка напоминаний"""
     logger.info("Запуск проверки напоминаний...")
     
     users = get_all_users()
@@ -24,21 +23,6 @@ async def send_daily_reminders(bot: Bot):
     if not users:
         logger.info("Пользователей в базе нет")
         return
-    
-    # Списки для отчёта
-    vlk_expired = []
-    vlk_30_days = []
-    vlk_15_days = []
-    vlk_7_days = []
-    umo_needed = []
-    ex4_expired = []
-    ex4_30_days = []
-    ex7_expired = []
-    ex7_30_days = []
-    vacation_expired = []
-    vacation_30_days = []
-    vacation_15_days = []
-    vacation_7_days = []
     
     for user in users:
         telegram_id = user[0]
@@ -50,25 +34,70 @@ async def send_daily_reminders(bot: Bot):
         try:
             # ===== ПРОВЕРКА ВЛК =====
             medical = get_medical(telegram_id)
-            if medical and medical[1]:  # vlk_date
+            if medical and medical[1]:
                 vlk_date = medical[1]
                 umo_date = medical[2]
                 status = check_vlk_status(vlk_date)
                 
+                # Формируем сообщение для пользователя
+                user_msg = ""
+                admin_msg = f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                
                 if status['vlk_expired']:
-                    vlk_expired.append(f"{full_name} — ВЛК истекла ({status['days_passed']} дн. назад)")
+                    user_msg = (
+                        f"⛔ <b>СРОЧНО! ВЛК ИСТЕКЛА!</b>\n\n"
+                        f"У вас истёк срок действия ВЛК!\n"
+                        f"📅 Прошло дней: {status['days_passed']}\n\n"
+                        f"❌ <b>ПОЛЁТЫ ЗАПРЕЩЕНЫ!</b>"
+                    )
+                    admin_msg += f"🔴 <b>ВЛК:</b> ИСТЕКЛА! ({status['days_passed']} дн. назад)\n"
+                    admin_msg += f"❌ ПОЛЁТЫ ЗАПРЕЩЕНЫ!"
                 
                 elif status['umo_needed'] and not umo_date:
-                    umo_needed.append(f"{full_name} — требуется УМО (ВЛК от {vlk_date})")
+                    user_msg = (
+                        f"⚠️ <b>ТРЕБУЕТСЯ УМО!</b>\n\n"
+                        f"Прошло более 6 месяцев с ВЛК.\n"
+                        f"📅 Дата ВЛК: {vlk_date}\n\n"
+                        f"Необходимо пройти УМО для продления ВЛК!"
+                    )
+                    admin_msg += f"🟠 <b>ВЛК:</b> Требуется УМО! ({status['days_passed']} дн.)"
                 
                 elif status['remind_30']:
-                    vlk_30_days.append(f"{full_name} — {status['days_remaining']} дн.")
+                    user_msg = (
+                        f"⏰ <b>ВЛК истекает через 30 дней!</b>\n\n"
+                        f"Напоминаем о необходимости пройти ВЛК.\n"
+                        f"📅 Осталось дней: {status['days_remaining']}"
+                    )
+                    admin_msg += f"🟡 <b>ВЛК:</b> Через {status['days_remaining']} дн."
                 
                 elif status['remind_15']:
-                    vlk_15_days.append(f"{full_name} — {status['days_remaining']} дн.")
+                    user_msg = (
+                        f"⏰ <b>ВЛК истекает через 15 дней!</b>\n\n"
+                        f"Осталось мало времени.\n"
+                        f"📅 Осталось дней: {status['days_remaining']}"
+                    )
+                    admin_msg += f"🟠 <b>ВЛК:</b> Через {status['days_remaining']} дн.!"
                 
                 elif status['remind_7']:
-                    vlk_7_days.append(f"{full_name} — {status['days_remaining']} дн.")
+                    user_msg = (
+                        f"🚨 <b>ВЛК истекает через 7 дней!</b>\n\n"
+                        f"СРОЧНО пройдите ВЛК!\n"
+                        f"📅 Осталось дней: {status['days_remaining']}"
+                    )
+                    admin_msg += f"🔴 <b>ВЛК:</b> Через {status['days_remaining']} дн.!!"
+                
+                # Отправляем сообщения
+                if user_msg:
+                    try:
+                        await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить пользователю {telegram_id}: {e}")
+                
+                if admin_msg and not admin_msg.endswith("нет"):
+                    try:
+                        await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить админу: {e}")
             
             # ===== ПРОВЕРКА КБП =====
             checks = get_checks(telegram_id)
@@ -78,97 +107,151 @@ async def send_daily_reminders(bot: Bot):
                     ex4_status = check_exercise_status(checks[1], 6)
                     
                     if ex4_status['expired']:
-                        ex4_expired.append(f"{full_name} — истекло ({abs(ex4_status['days_remaining'])} дн. назад)")
+                        user_msg = (
+                            f"⛔ <b>Упражнение 4 ИСТЕКЛО!</b>\n\n"
+                            f"Срок действия упражнения 4 истёк.\n"
+                            f"📅 Истекло дней назад: {abs(ex4_status['days_remaining'])}\n\n"
+                            f"❌ <b>ПОЛЁТЫ ЗАПРЕЩЕНЫ!</b>"
+                        )
+                        admin_msg = (
+                            f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                            f"🔴 <b>Упр.4:</b> ИСТЕКЛО! ({abs(ex4_status['days_remaining'])} дн. назад)\n"
+                            f"❌ ПОЛЁТЫ ЗАПРЕЩЕНЫ!"
+                        )
+                        try:
+                            await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                            await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                        except Exception as e:
+                            logger.error(f"Ошибка отправки Упр.4: {e}")
                     
-                    elif ex4_status['remind_30']:
-                        ex4_30_days.append(f"{full_name} — {ex4_status['days_remaining']} дн.")
+                    elif ex4_status['days_remaining'] <= 30:
+                        user_msg = (
+                            f"⏰ <b>Упражнение 4 истекает!</b>\n\n"
+                            f"Осталось {ex4_status['days_remaining']} дн.\n"
+                            f"📅 Действительно до: {ex4_status['valid_until']}"
+                        )
+                        admin_msg = (
+                            f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                            f"🟡 <b>Упр.4:</b> Через {ex4_status['days_remaining']} дн."
+                        )
+                        try:
+                            await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                            await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                        except Exception as e:
+                            logger.error(f"Ошибка отправки Упр.4: {e}")
                 
                 # Упражнение 7 (12 месяцев)
                 if checks[2]:
                     ex7_status = check_exercise_status(checks[2], 12)
                     
                     if ex7_status['expired']:
-                        ex7_expired.append(f"{full_name} — истекло ({abs(ex7_status['days_remaining'])} дн. назад)")
+                        user_msg = (
+                            f"⛔ <b>Упражнение 7 ИСТЕКЛО!</b>\n\n"
+                            f"Срок действия упражнения 7 истёк.\n"
+                            f"📅 Истекло дней назад: {abs(ex7_status['days_remaining'])}\n\n"
+                            f"❌ <b>ПОЛЁТЫ ЗАПРЕЩЕНЫ!</b>"
+                        )
+                        admin_msg = (
+                            f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                            f"🔴 <b>Упр.7:</b> ИСТЕКЛО! ({abs(ex7_status['days_remaining'])} дн. назад)\n"
+                            f"❌ ПОЛЁТЫ ЗАПРЕЩЕНЫ!"
+                        )
+                        try:
+                            await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                            await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                        except Exception as e:
+                            logger.error(f"Ошибка отправки Упр.7: {e}")
                     
-                    elif ex7_status['remind_30']:
-                        ex7_30_days.append(f"{full_name} — {ex7_status['days_remaining']} дн.")
+                    elif ex7_status['days_remaining'] <= 30:
+                        user_msg = (
+                            f"⏰ <b>Упражнение 7 истекает!</b>\n\n"
+                            f"Осталось {ex7_status['days_remaining']} дн.\n"
+                            f"📅 Действительно до: {ex7_status['valid_until']}"
+                        )
+                        admin_msg = (
+                            f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                            f"🟡 <b>Упр.7:</b> Через {ex7_status['days_remaining']} дн."
+                        )
+                        try:
+                            await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                            await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                        except Exception as e:
+                            logger.error(f"Ошибка отправки Упр.7: {e}")
             
             # ===== ПРОВЕРКА ОТПУСКА =====
             vacation = get_vacation(telegram_id)
             if vacation and vacation[2]:
                 vac_status = check_vacation_status(vacation[2])
+                vac_days = vacation[3] if len(vacation) > 3 else 0
                 
                 if vac_status['expired']:
-                    vacation_expired.append(f"{full_name} — истёк ({vac_status['days_passed']} дн. назад)")
+                    user_msg = (
+                        f"⚠️ <b>Отпуск истёк!</b>\n\n"
+                        f"С момента окончания отпуска прошло больше года.\n"
+                        f"📅 Прошло дней: {vac_status['days_passed']}\n"
+                        f"📊 Дней отпуска было: {vac_days}\n\n"
+                        f"Необходимо оформить новый отпуск!"
+                    )
+                    admin_msg = (
+                        f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                        f"🔴 <b>Отпуск:</b> ИСТЁК! ({vac_days} дн., {vac_status['days_passed']} дн. назад)"
+                    )
+                    try:
+                        await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                        await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки отпуск: {e}")
                 
                 elif vac_status['remind_30']:
-                    vacation_30_days.append(f"{full_name} — {vac_status['days_until_next']} дн.")
+                    user_msg = (
+                        f"⏰ <b>До отпуска 30 дней!</b>\n\n"
+                        f"Через {vac_status['days_until_next']} дн. нужен новый отпуск.\n"
+                        f"📊 Прошлый отпуск: {vac_days} дн."
+                    )
+                    admin_msg = (
+                        f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                        f"🟡 <b>Отпуск:</b> Через {vac_status['days_until_next']} дн."
+                    )
+                    try:
+                        await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                        await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки отпуск: {e}")
                 
                 elif vac_status['remind_15']:
-                    vacation_15_days.append(f"{full_name} — {vac_status['days_until_next']} дн.")
+                    user_msg = (
+                        f"⏰ <b>До отпуска 15 дней!</b>\n\n"
+                        f"Через {vac_status['days_until_next']} дн. нужен новый отпуск."
+                    )
+                    admin_msg = (
+                        f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                        f"🟠 <b>Отпуск:</b> Через {vac_status['days_until_next']} дн.!"
+                    )
+                    try:
+                        await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                        await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки отпуск: {e}")
                 
                 elif vac_status['remind_7']:
-                    vacation_7_days.append(f"{full_name} — {vac_status['days_until_next']} дн.")
+                    user_msg = (
+                        f"🚨 <b>До отпуска 7 дней!</b>\n\n"
+                        f"Через {vac_status['days_until_next']} дн. нужен новый отпуск."
+                    )
+                    admin_msg = (
+                        f"📊 <b>Напоминание: {full_name}</b> (ID: {telegram_id})\n\n"
+                        f"🔴 <b>Отпуск:</b> Через {vac_status['days_until_next']} дн.!!"
+                    )
+                    try:
+                        await bot.send_message(telegram_id, user_msg, parse_mode="HTML")
+                        await bot.send_message(ADMIN_ID, admin_msg, parse_mode="HTML")
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки отпуск: {e}")
         
         except Exception as e:
             logger.error(f"Ошибка при проверке пользователя {telegram_id}: {e}")
     
-    # ===== ФОРМИРУЕМ ОТЧЁТ ДЛЯ АДМИНА =====
-    report = "📊 **ЕЖЕДНЕВНЫЙ ОТЧЁТ**\n"
-    report += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
-    
-    # СРОЧНЫЕ (истекло)
-    if vlk_expired:
-        report += "⛔ **ВЛК ИСТЕКЛА:**\n" + "\n".join(vlk_expired) + "\n\n"
-    
-    if ex4_expired:
-        report += "⛔ **Упр.4 ИСТЕКЛО:**\n" + "\n".join(ex4_expired) + "\n\n"
-    
-    if ex7_expired:
-        report += "⛔ **Упр.7 ИСТЕКЛО:**\n" + "\n".join(ex7_expired) + "\n\n"
-    
-    if vacation_expired:
-        report += "⚠️ **ОТПУСК ИСТЁК:**\n" + "\n".join(vacation_expired) + "\n\n"
-    
-    # ВНИМАНИЕ (требуется действие)
-    if umo_needed:
-        report += "⚠️ **ТРЕБУЕТСЯ УМО:**\n" + "\n".join(umo_needed) + "\n\n"
-    
-    # НАПОМИНАНИЯ (30 дней)
-    if vlk_30_days:
-        report += "⏰ **ВЛК через 30 дней:**\n" + "\n".join(vlk_30_days) + "\n\n"
-    
-    if vlk_15_days:
-        report += "⏰ **ВЛК через 15 дней:**\n" + "\n".join(vlk_15_days) + "\n\n"
-    
-    if vlk_7_days:
-        report += "🚨 **ВЛК через 7 дней:**\n" + "\n".join(vlk_7_days) + "\n\n"
-    
-    if ex4_30_days:
-        report += "⏰ **Упр.4 через 30 дней:**\n" + "\n".join(ex4_30_days) + "\n\n"
-    
-    if ex7_30_days:
-        report += "⏰ **Упр.7 через 30 дней:**\n" + "\n".join(ex7_30_days) + "\n\n"
-    
-    if vacation_30_days:
-        report += "⏰ **Отпуск через 30 дней:**\n" + "\n".join(vacation_30_days) + "\n\n"
-    
-    if vacation_15_days:
-        report += "⏰ **Отпуск через 15 дней:**\n" + "\n".join(vacation_15_days) + "\n\n"
-    
-    if vacation_7_days:
-        report += "🚨 **Отпуск через 7 дней:**\n" + "\n".join(vacation_7_days) + "\n\n"
-    
-    # Если ничего нет
-    if len(report.split("\n")) == 3:
-        report += "✅ Всё в порядке! Напоминаний нет."
-    
-    # Отправляем отчёт админу
-    try:
-        await bot.send_message(ADMIN_ID, report, parse_mode="Markdown")
-        logger.info(f"Отчёт отправлен админу {ADMIN_ID}")
-    except Exception as e:
-        logger.error(f"Не удалось отправить отчёт админу: {e}")
+    logger.info("Проверка напоминаний завершена")
 
 async def run_scheduler(bot: Bot, interval_hours: int = 24):
     """Запуск планировщика"""
