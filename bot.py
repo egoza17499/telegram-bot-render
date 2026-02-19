@@ -13,6 +13,7 @@ from database import (
     get_checks, add_check, check_exercise_status,
     get_vacation, add_vacation, check_vacation_status
 )
+from scheduler import run_scheduler
 
 # Настройки
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -367,7 +368,13 @@ async def on_shutdown(app: web.Application):
     await bot.delete_webhook()
 
 app.on_startup.append(on_startup)
+async def on_startup(app: web.Application):
+    await bot.set_webhook(WEBHOOK_URL)
+    # Запуск планировщика напоминаний
+    asyncio.create_task(run_scheduler(bot, interval_hours=24))
+    logger.info("Планировщик напоминаний запущен!")
 app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
+
