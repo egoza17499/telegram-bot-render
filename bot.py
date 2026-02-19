@@ -338,11 +338,14 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 
 async def on_startup(app: web.Application):
+    """Запуск бота: webhook + планировщик"""
+    init_db()  # ← Создаём таблицы БД при запуске!
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(run_scheduler(bot, interval_hours=24))
     logger.info("Планировщик напоминаний запущен!")
 
 async def on_shutdown(app: web.Application):
+    """Остановка бота"""
     await bot.delete_webhook()
 
 app.on_startup.append(on_startup)
