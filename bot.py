@@ -25,29 +25,23 @@ PORT = int(os.getenv('PORT', 8080))
 ADMIN_ID = 393293807 
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)  # ← ЭТО ДОБАВЬ!
+logger = logging.getLogger(__name__)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 # Машина состояний
 class Form(StatesGroup):
-    # Основная анкета
     surname = State()
     name = State()
     patronymic = State()
     rank = State()
-    # ВЛК
     vlk_date = State()
     umo_date = State()
-    # КБП
     exercise_4_date = State()
     exercise_7_date = State()
-    # Отпуск
     vacation_start = State()
     vacation_end = State()
-    # Удаление
     confirm_delete = State()
-    # Обновление
     update_field = State()
     update_value = State()
 
@@ -73,7 +67,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     else:
         await message.answer(
             "👋 Привет! Давайте заполним анкету.\n\n"
-            "Напишите вашу Фамилию:"
+            "Напишите вашу **фамилию**:"
         )
         await state.set_state(Form.surname)
 
@@ -98,8 +92,6 @@ async def cmd_help(message: types.Message):
         "/all — Список всех пользователей"
     )
 
-# ==================== /profile ====================
-
 @dp.message(Command("profile"))
 async def cmd_profile(message: types.Message):
     user = get_user(message.from_user.id)
@@ -112,7 +104,6 @@ async def cmd_profile(message: types.Message):
     checks = get_checks(message.from_user.id)
     vacation = get_vacation(message.from_user.id)
     
-    # Статус ВЛК
     vlk_status = ""
     if medical and medical[1]:
         status = check_vlk_status(medical[1])
@@ -125,7 +116,6 @@ async def cmd_profile(message: types.Message):
         else:
             vlk_status = f"✅ **ВЛК:** Действует до {status['days_remaining']} дн."
     
-    # Статус КБП
     check_status = ""
     if checks:
         if checks[1]:
@@ -142,7 +132,6 @@ async def cmd_profile(message: types.Message):
             else:
                 check_status += f"✅ **Упр.7:** до {ex7['valid_until']}\n"
     
-    # Статус отпуска
     vac_status = ""
     if vacation and vacation[2]:
         vac = check_vacation_status(vacation[2])
@@ -162,8 +151,6 @@ async def cmd_profile(message: types.Message):
         f"{vac_status}\n\n"
         f"📅 **Зарегистрирован:** {user[5]}" if user[5] else ""
     )
-
-# ==================== /delete ====================
 
 @dp.message(Command("delete"))
 async def cmd_delete(message: types.Message, state: FSMContext):
@@ -188,10 +175,7 @@ async def process_delete_confirm(message: types.Message, state: FSMContext):
         await message.answer("✅ Ваши данные удалены.")
     else:
         await message.answer("❌ Удаление отменено.")
-    
     await state.clear()
-
-# ==================== /update ====================
 
 @dp.message(Command("update"))
 async def cmd_update(message: types.Message, state: FSMContext):
@@ -236,12 +220,9 @@ async def process_update_field(message: types.Message, state: FSMContext):
 async def process_update_value(message: types.Message, state: FSMContext):
     data = await state.get_data()
     field = data.get('update_field')
-    
     update_user(message.from_user.id, **{field: message.text})
     await message.answer(f"✅ Поле **{field}** обновлено на: {message.text}")
     await state.clear()
-
-# ==================== /all (АДМИН) ====================
 
 @dp.message(Command("all"))
 async def cmd_all(message: types.Message):
@@ -258,10 +239,7 @@ async def cmd_all(message: types.Message):
     text = "👥 **ВСЕ ПОЛЬЗОВАТЕЛИ:**\n\n"
     for i, user in enumerate(users, 1):
         text += f"{i}. {user[1]} {user[2]} ({user[3]}) — ID: {user[0]}\n"
-    
     await message.answer(text)
-
-# ==================== /vlk ====================
 
 @dp.message(Command("vlk"))
 async def cmd_vlk(message: types.Message, state: FSMContext):
@@ -282,8 +260,6 @@ async def process_vlk_date(message: types.Message, state: FSMContext):
         await message.answer("❌ Неверный формат. Используйте ГГГГ-ММ-ДД:")
         return
     await state.clear()
-
-# ==================== /checks ====================
 
 @dp.message(Command("checks"))
 async def cmd_checks(message: types.Message, state: FSMContext):
@@ -324,8 +300,6 @@ async def process_exercise_date(message: types.Message, state: FSMContext):
         return
     await state.clear()
 
-# ==================== /vacation ====================
-
 @dp.message(Command("vacation"))
 async def cmd_vacation(message: types.Message, state: FSMContext):
     await message.answer(
@@ -364,14 +338,11 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 
 async def on_startup(app: web.Application):
-    """Запуск бота: webhook + планировщик"""
     await bot.set_webhook(WEBHOOK_URL)
-    # Запуск планировщика напоминаний
     asyncio.create_task(run_scheduler(bot, interval_hours=24))
     logger.info("Планировщик напоминаний запущен!")
 
 async def on_shutdown(app: web.Application):
-    """Остановка бота"""
     await bot.delete_webhook()
 
 app.on_startup.append(on_startup)
@@ -379,8 +350,3 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
-
-
-
-
-
