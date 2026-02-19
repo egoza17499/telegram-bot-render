@@ -635,18 +635,16 @@ async def process_vacation_end(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "profile")
 async def process_profile_callback(callback_query: types.CallbackQuery):
     """Обработка кнопки профиля"""
+    logger.info(f"Callback profile от {callback_query.from_user.id}")
     await callback_query.answer()
-    user = get_user(callback_query.from_user.id)
     
+    user = get_user(callback_query.from_user.id)
     if not user:
-        await callback_query.message.answer(
-            "❌ Вы ещё не зарегистрированы. Используйте /start"
-        )
+        await callback_query.message.answer("❌ Вы ещё не зарегистрированы. Используйте /start")
         return
     
     medical = get_medical(callback_query.from_user.id)
     checks = get_checks(callback_query.from_user.id)
-    vacation = get_vacation(callback_query.from_user.id)
     
     vlk_status = ""
     if medical and medical[1]:
@@ -673,6 +671,7 @@ async def process_profile_callback(callback_query: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == "help")
 async def process_help_callback(callback_query: types.CallbackQuery):
     """Обработка кнопки помощи"""
+    logger.info(f"Callback help от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "📖 <b>Доступные команды:</b>\n\n"
@@ -690,6 +689,8 @@ async def process_help_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "vlk")
 async def process_vlk_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки ВЛК"""
+    logger.info(f"Callback vlk от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "🏥 <b>ВЛК</b>\n\n"
@@ -699,6 +700,8 @@ async def process_vlk_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "checks")
 async def process_checks_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки проверок"""
+    logger.info(f"Callback checks от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "✈️ <b>Проверки КБП</b>\n\n"
@@ -708,6 +711,8 @@ async def process_checks_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "vacation")
 async def process_vacation_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки отпуска"""
+    logger.info(f"Callback vacation от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "🏖️ <b>Отпуск</b>\n\n"
@@ -717,6 +722,8 @@ async def process_vacation_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "update")
 async def process_update_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки редактирования"""
+    logger.info(f"Callback update от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "✏️ <b>Редактирование</b>\n\n"
@@ -726,6 +733,8 @@ async def process_update_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "delete")
 async def process_delete_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки удаления"""
+    logger.info(f"Callback delete от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "🗑️ <b>Удаление данных</b>\n\n"
@@ -735,6 +744,8 @@ async def process_delete_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "start_reg")
 async def process_start_reg_callback(callback_query: types.CallbackQuery):
+    """Обработка кнопки регистрации"""
+    logger.info(f"Callback start_reg от {callback_query.from_user.id}")
     await callback_query.answer()
     await callback_query.message.answer(
         "👋 <b>Регистрация</b>\n\n"
@@ -789,3 +800,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
+
