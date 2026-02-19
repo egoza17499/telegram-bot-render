@@ -183,13 +183,41 @@ def add_check(telegram_id: int, exercise: int, check_date: str) -> bool:
     conn.close()
     return True
 
-def get_checks(telegram_id: int) -> Optional[Tuple]:
+def add_check(telegram_id: int, exercise: int, check_date: str) -> bool:
+    """Добавляет или обновляет проверку КБП"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM checks WHERE telegram_id = ?", (telegram_id,))
-    result = cursor.fetchone()
+    
+    # Сначала проверяем есть ли пользователь
+    cursor.execute("SELECT telegram_id FROM checks WHERE telegram_id = ?", (telegram_id,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        # Если есть — обновляем нужное поле
+        if exercise == 4:
+            cursor.execute("""
+                UPDATE checks SET exercise_4_date = ? WHERE telegram_id = ?
+            """, (check_date, telegram_id))
+        elif exercise == 7:
+            cursor.execute("""
+                UPDATE checks SET exercise_7_date = ? WHERE telegram_id = ?
+            """, (check_date, telegram_id))
+    else:
+        # Если нет — создаём новую запись
+        if exercise == 4:
+            cursor.execute("""
+                INSERT INTO checks (telegram_id, exercise_4_date, exercise_7_date)
+                VALUES (?, ?, NULL)
+            """, (telegram_id, check_date))
+        elif exercise == 7:
+            cursor.execute("""
+                INSERT INTO checks (telegram_id, exercise_4_date, exercise_7_date)
+                VALUES (?, NULL, ?)
+            """, (telegram_id, check_date))
+    
+    conn.commit()
     conn.close()
-    return result
+    return True
 
 def check_exercise_status(check_date: str, valid_months: int) -> dict:
     check = datetime.strptime(check_date, "%Y-%m-%d")
@@ -243,3 +271,4 @@ def check_vacation_status(end_date: str) -> dict:
         "remind_15": 0 < days_until_year <= 15,
         "remind_7": 0 < days_until_year <= 7,
     }
+
