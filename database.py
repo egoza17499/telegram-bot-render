@@ -56,7 +56,9 @@ def init_db():
     conn.close()
 
 # ==================== USERS ====================
+
 def add_user(telegram_id: int, surname: str, name: str, patronymic: str, rank: str) -> bool:
+    """Добавляет нового пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
@@ -72,6 +74,7 @@ def add_user(telegram_id: int, surname: str, name: str, patronymic: str, rank: s
         conn.close()
 
 def get_user(telegram_id: int) -> Optional[Tuple]:
+    """Получает данные пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -123,7 +126,9 @@ def get_all_users() -> List[Tuple]:
     return result
 
 # ==================== MEDICAL (ВЛК/УМО) ====================
+
 def add_medical(telegram_id: int, vlk_date: str, umo_date: str = None) -> bool:
+    """Добавляет или обновляет медицинские данные"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
@@ -137,6 +142,7 @@ def add_medical(telegram_id: int, vlk_date: str, umo_date: str = None) -> bool:
         conn.close()
 
 def get_medical(telegram_id: int) -> Optional[Tuple]:
+    """Получает медицинские данные пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM medical WHERE telegram_id = ?", (telegram_id,))
@@ -164,24 +170,15 @@ def check_vlk_status(vlk_date: str) -> dict:
     }
 
 # ==================== CHECKS (КБП) ====================
-def add_check(telegram_id: int, exercise: int, check_date: str) -> bool:
+
+def get_checks(telegram_id: int) -> Optional[Tuple]:
+    """Получает проверки КБП пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    if exercise == 4:
-        cursor.execute("""
-            INSERT OR REPLACE INTO checks (telegram_id, exercise_4_date)
-            VALUES (?, ?)
-        """, (telegram_id, check_date))
-    elif exercise == 7:
-        cursor.execute("""
-            INSERT OR REPLACE INTO checks (telegram_id, exercise_7_date)
-            VALUES (?, ?)
-        """, (telegram_id, check_date))
-    
-    conn.commit()
+    cursor.execute("SELECT * FROM checks WHERE telegram_id = ?", (telegram_id,))
+    result = cursor.fetchone()
     conn.close()
-    return True
+    return result
 
 def add_check(telegram_id: int, exercise: int, check_date: str) -> bool:
     """Добавляет или обновляет проверку КБП"""
@@ -220,6 +217,7 @@ def add_check(telegram_id: int, exercise: int, check_date: str) -> bool:
     return True
 
 def check_exercise_status(check_date: str, valid_months: int) -> dict:
+    """Проверяет статус упражнения"""
     check = datetime.strptime(check_date, "%Y-%m-%d")
     today = datetime.now()
     valid_until = check + timedelta(days=valid_months * 30)
@@ -232,7 +230,9 @@ def check_exercise_status(check_date: str, valid_months: int) -> dict:
     }
 
 # ==================== VACATION (Отпуск) ====================
+
 def add_vacation(telegram_id: int, start_date: str, end_date: str) -> bool:
+    """Добавляет или обновляет отпуск"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
@@ -250,6 +250,7 @@ def add_vacation(telegram_id: int, start_date: str, end_date: str) -> bool:
     return True
 
 def get_vacation(telegram_id: int) -> Optional[Tuple]:
+    """Получает данные об отпуске пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM vacation WHERE telegram_id = ?", (telegram_id,))
@@ -258,6 +259,7 @@ def get_vacation(telegram_id: int) -> Optional[Tuple]:
     return result
 
 def check_vacation_status(end_date: str) -> dict:
+    """Проверяет статус отпуска"""
     end = datetime.strptime(end_date, "%Y-%m-%d")
     today = datetime.now()
     days_passed = (today - end).days
@@ -271,4 +273,3 @@ def check_vacation_status(end_date: str) -> dict:
         "remind_15": 0 < days_until_year <= 15,
         "remind_7": 0 < days_until_year <= 7,
     }
-
