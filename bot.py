@@ -24,6 +24,7 @@ PORT = int(os.getenv('PORT', 8080))
 ADMIN_ID = 393293807 
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)  # ← ЭТО ДОБАВЬ!
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
@@ -377,4 +378,5 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
+
 
