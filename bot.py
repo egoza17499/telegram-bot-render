@@ -89,17 +89,6 @@ def get_group_help_keyboard() -> InlineKeyboardMarkup:
     
     return builder.as_markup()
 
-# ==================== ФОРМАТИРОВАНИЕ ====================
-
-def format_status_text(text: str, status: str) -> str:
-    """Форматирует текст в зависимости от статуса"""
-    if status == "critical":  # Красный (истекло)
-        return f"<b>{text}</b>"
-    elif status == "warning":  # Оранжевый (внимание)
-        return f"<b>{text}</b>"
-    else:  # Зелёный (норма)
-        return f"<b>{text}</b>"
-
 # ==================== КОМАНДЫ ====================
 
 @dp.message(Command("start"))
@@ -235,7 +224,6 @@ async def cmd_profile(message: types.Message):
     checks = get_checks(message.from_user.id)
     vacation = get_vacation(message.from_user.id)
     
-    # ВЛК статус
     vlk_status = ""
     if medical and medical[1]:
         status = check_vlk_status(medical[1])
@@ -252,17 +240,14 @@ async def cmd_profile(message: types.Message):
         else:
             vlk_status = f"🟢 <b>ВЛК:</b> Действует ({status['days_remaining']} дн.)"
     
-    # УМО статус
     umo_status = ""
     if medical and medical[2]:
-        umo_date = datetime.strptime(medical[2], "%Y-%m-%d")
         umo_status = f"🟢 <b>УМО:</b> Пройдено ({medical[2]})"
     elif medical and medical[1]:
         status = check_vlk_status(medical[1])
         if status['umo_needed']:
             umo_status = f"🔴 <b>УМО:</b> НЕ ПРОЙДЕНО!"
     
-    # КБП статус
     check_status = ""
     if checks:
         if checks[1]:
@@ -283,7 +268,6 @@ async def cmd_profile(message: types.Message):
             else:
                 check_status += f"🟢 <b>Упр.7:</b> {ex7['days_remaining']} дн. (до {ex7['valid_until']})\n"
     
-    # Отпуск статус
     vac_status = ""
     if vacation and vacation[2]:
         vac = check_vacation_status(vacation[2])
@@ -315,7 +299,7 @@ async def cmd_profile(message: types.Message):
         reply_markup=get_main_keyboard()
     )
 
-# ==================== /all (АДМИН - ПОЛНЫЕ ДАННЫЕ) ====================
+# ==================== /all (АДМИН) ====================
 
 @dp.message(Command("all"))
 async def cmd_all(message: types.Message):
@@ -338,8 +322,6 @@ async def cmd_all(message: types.Message):
         rank = user[3] or "не указано"
         
         full_name = f"{surname} {name}"
-        
-        # Получаем дополнительные данные
         medical = get_medical(telegram_id)
         checks = get_checks(telegram_id)
         vacation = get_vacation(telegram_id)
@@ -347,7 +329,6 @@ async def cmd_all(message: types.Message):
         report += f"<b>#{i}. {full_name}</b> ({rank})\n"
         report += f"   ID: <code>{telegram_id}</code>\n"
         
-        # ВЛК
         if medical and medical[1]:
             vlk = check_vlk_status(medical[1])
             if vlk['vlk_expired']:
@@ -357,7 +338,6 @@ async def cmd_all(message: types.Message):
             else:
                 report += f"   🟢 <b>ВЛК:</b> {vlk['days_remaining']} дн.\n"
             
-            # УМО
             if medical[2]:
                 report += f"   🟢 <b>УМО:</b> {medical[2]}\n"
             elif vlk['umo_needed']:
@@ -365,7 +345,6 @@ async def cmd_all(message: types.Message):
         else:
             report += f"   ⚪ <b>ВЛК:</b> нет данных\n"
         
-        # КБП
         if checks:
             if checks[1]:
                 ex4 = check_exercise_status(checks[1], 6)
@@ -382,7 +361,6 @@ async def cmd_all(message: types.Message):
         else:
             report += f"   ⚪ <b>КБП:</b> нет данных\n"
         
-        # Отпуск
         if vacation and vacation[2]:
             vac = check_vacation_status(vacation[2])
             vac_days = vacation[3] if len(vacation) > 3 else 0
@@ -395,7 +373,6 @@ async def cmd_all(message: types.Message):
         
         report += "\n"
         
-        # Разделяем длинные сообщения
         if len(report) > 3000:
             await message.answer(report, parse_mode="HTML")
             report = ""
@@ -500,7 +477,6 @@ async def process_vlk_date(message: types.Message, state: FSMContext):
         add_medical(message.from_user.id, message.text)
         await message.answer(f"✅ <b>ВЛК сохранена:</b> {message.text}", parse_mode="HTML")
         
-        # Уведомление админу
         user = get_user(message.from_user.id)
         if user:
             full_name = f"{user[1]} {user[2]}"
@@ -555,7 +531,6 @@ async def process_exercise_date(message: types.Message, state: FSMContext):
         add_check(message.from_user.id, exercise, message.text)
         await message.answer(f"✅ <b>Упражнение {exercise} сохранено:</b> {message.text}", parse_mode="HTML")
         
-        # Уведомление админу
         user = get_user(message.from_user.id)
         if user:
             full_name = f"{user[1]} {user[2]}"
@@ -601,7 +576,6 @@ async def process_vacation_end(message: types.Message, state: FSMContext):
         datetime.strptime(message.text, "%Y-%m-%d")
         add_vacation(message.from_user.id, data['vac_start'], message.text)
         
-        # Считаем дни
         start = datetime.strptime(data['vac_start'], "%Y-%m-%d")
         end = datetime.strptime(message.text, "%Y-%m-%d")
         days = (end - start).days + 1
@@ -613,7 +587,6 @@ async def process_vacation_end(message: types.Message, state: FSMContext):
             parse_mode="HTML"
         )
         
-        # Уведомление админу
         user = get_user(message.from_user.id)
         if user:
             full_name = f"{user[1]} {user[2]}"
@@ -800,4 +773,3 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=PORT)
-
