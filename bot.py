@@ -10,21 +10,21 @@ from aiohttp import web
 from database import init_db, user_exists, add_user
 
 # Настройки
-API_TOKEN = os.getenv('BOT_TOKEN')  
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Ссылка на твой Render
+API_TOKEN = os.getenv('BOT_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', 8080))
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# --- Машина состояний ---
+# Машина состояний
 class Form(StatesGroup):
     surname = State()
     name = State()
     patronymic = State()
 
-# --- Хендлеры ---
+# Хендлеры
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     init_db()
@@ -68,15 +68,15 @@ async def process_patronymic(message: types.Message, state: FSMContext):
         await message.answer("Ошибка сохранения.")
     await state.clear()
 
-# --- Веб-сервер для Webhook ---
+# Веб-сервер
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 
-async def on_startup():
+async def on_startup(bot: Bot):  # ← ВАЖНО: (bot: Bot)
     await bot.set_webhook(WEBHOOK_URL)
 
-async def on_shutdown():
+async def on_shutdown(bot: Bot):  # ← ВАЖНО: (bot: Bot)
     await bot.delete_webhook()
 
 app.on_startup.append(on_startup)
