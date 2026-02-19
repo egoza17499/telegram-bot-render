@@ -72,7 +72,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     else:
         await message.answer(
             "👋 Привет! Давайте заполним анкету.\n\n"
-            "Напишите вашу **фамилию**:"
+            "Напишите вашу Фамилию:"
         )
         await state.set_state(Form.surname)
 
@@ -363,17 +363,17 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 setup_application(app, dp, bot=bot)
 
 async def on_startup(app: web.Application):
-    await bot.set_webhook(WEBHOOK_URL)
-
-async def on_shutdown(app: web.Application):
-    await bot.delete_webhook()
-
-app.on_startup.append(on_startup)
-async def on_startup(app: web.Application):
+    """Запуск бота: webhook + планировщик"""
     await bot.set_webhook(WEBHOOK_URL)
     # Запуск планировщика напоминаний
     asyncio.create_task(run_scheduler(bot, interval_hours=24))
     logger.info("Планировщик напоминаний запущен!")
+
+async def on_shutdown(app: web.Application):
+    """Остановка бота"""
+    await bot.delete_webhook()
+
+app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
